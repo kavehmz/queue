@@ -21,7 +21,7 @@ func TestPartitions(t *testing.T) {
 func TestAddTask(t *testing.T) {
 	Partitions([]string{testRedis})
 	redisdb := redisPool[0].conn
-	redisdb.Do("DEL", "WAREHOUSE_0")
+	redisdb.Do("FLUSHALL")
 	AddTask(4, "test")
 	r, e := redisdb.Do("RPOP", "WAREHOUSE_0")
 	s, e := redis.String(r, e)
@@ -34,7 +34,7 @@ func TestQueuesInPartision(t *testing.T) {
 	QueuesInPartision(5)
 	Partitions([]string{testRedis})
 	redisdb := redisPool[0].conn
-	redisdb.Do("DEL", "WAREHOUSE_4")
+	redisdb.Do("FLUSHALL")
 	AddTask(4, "test")
 	r, e := redisdb.Do("RPOP", "WAREHOUSE_4")
 	s, e := redis.String(r, e)
@@ -48,7 +48,7 @@ func TestAnalysePool(t *testing.T) {
 	QueuesInPartision(1)
 	Partitions([]string{testRedis})
 	redisdb := redisPool[0].conn
-	redisdb.Do("DEL", "WAREHOUSE_0")
+	redisdb.Do("FLUSHALL")
 	AddTask(1, "start")
 	AddTask(2, "start")
 	AddTask(1, "stop")
@@ -78,7 +78,7 @@ func TestAnalysePoolFailurePending(t *testing.T) {
 	QueuesInPartision(1)
 	Partitions([]string{testRedis})
 	redisdb := redisPool[0].conn
-	redisdb.Do("DEL", "WAREHOUSE_0")
+	redisdb.Do("FLUSHALL")
 	AddTask(1, "start")
 	AddTask(2, "start")
 	AddTask(1, "stop")
@@ -103,9 +103,45 @@ func TestAnalysePoolFailurePending(t *testing.T) {
 	r, e := redisdb.Do("GET", "PENDING::2")
 	s, e := redis.Int(r, e)
 	if s != 1 {
-		t.Error("Queue is not empty after processing tasks: ", s)
+		t.Error("Task id 2 is not pending: ", s)
 	}
 
+}
+
+func TestAnalysePoolCheckingWaiting(t *testing.T) {
+	QueuesInPartision(1)
+	Partitions([]string{testRedis})
+	redisdb := redisPool[0].conn
+	redisdb.Do("FLUSHALL")
+	AddTask(1, "start")
+	AddTask(2, "start")
+	AddTask(1, "stop")
+	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
+		for {
+			select {
+			case msg := <-msg_channel:
+				if msg == "stop" {
+					<-next
+					success <- true
+					return
+				}
+			}
+		}
+	}
+	go AnalysePool(1, 2, false, analyzer)
+	time.Sleep(100 * time.Millisecond)
+	r, e := redisdb.Do("GET", "PENDING::2")
+	s, e := redis.Int(r, e)
+	if s != 1 {
+		t.Error("Task id 2 is not pending after queue is empty: ", s)
+	}
+	AddTask(2, "stop")
+	time.Sleep(200 * time.Millisecond)
+	r, e = redisdb.Do("GET", "PENDING::2")
+	s, e = redis.Int(r, e)
+	if s != 0 {
+		t.Error("Task 2 did not clear: ", s)
+	}
 }
 
 func BenchmarkAddTask(b *testing.B) {
