@@ -74,6 +74,40 @@ func TestAnalysePool(t *testing.T) {
 
 }
 
+func TestAnalysePoolFailurePending(t *testing.T) {
+	QueuesInPartision(1)
+	Partitions([]string{testRedis})
+	redisdb := redisPool[0].conn
+	redisdb.Do("DEL", "WAREHOUSE_0")
+	AddTask(1, "start")
+	AddTask(2, "start")
+	AddTask(1, "stop")
+	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
+		for {
+			select {
+			case msg := <-msg_channel:
+				if msg == "stop" {
+					<-next
+					success <- true
+					return
+				}
+			case <-time.After(1 * time.Second):
+				fmt.Println("no new event for 2 seconds for ID", id)
+				<-next
+				success <- false
+				return
+			}
+		}
+	}
+	AnalysePool(1, 2, true, analyzer)
+	r, e := redisdb.Do("GET", "PENDING::2")
+	s, e := redis.Int(r, e)
+	if s != 1 {
+		t.Error("Queue is not empty after processing tasks: ", s)
+	}
+
+}
+
 func BenchmarkAddTask(b *testing.B) {
 	QueuesInPartision(1)
 	Partitions([]string{testRedis})

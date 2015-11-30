@@ -91,6 +91,7 @@ func removeTask(redisdb redis.Conn, queue string) (int, string) {
 // msg_channel will be used to send related tasks to the analyzer function. There can be more than one task with the same ID if needed.
 // success to indicate success or failure of analyzer.
 // next to signal when it is OK for AnalysePool to start the next tasks. Normally this should be calls before ending analyzer.
+// If a task does not return by sucess or crashes, all non-complete analyzes can be found by searching for PENDING::* keys in Redis. * will indicate the ID of failed tasks.
 func AnalysePool(n int, poolSize int, exitOnEmpy bool, analyzer func(int, chan string, chan bool, chan bool)) {
 	redisdb := redisPool[n%redisParitions].conn
 	queue := "WAREHOUSE_" + strconv.Itoa((n/redisParitions)%queuePartitions)
