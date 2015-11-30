@@ -93,7 +93,7 @@ func removeTask(redisdb redis.Conn, queue string) (int, string) {
 // next to signal when it is OK for AnalysePool to start the next tasks. Normally this should be calls before ending analyzer.
 // If a task does not return by sucess or crashes, all non-complete analyzes can be found by searching for PENDING::* keys in Redis. * will indicate the ID of failed tasks.
 func AnalysePool(n int, poolSize int, exitOnEmpy bool, analyzer func(int, chan string, chan bool, chan bool)) {
-	redisdb := redisPool[n%redisParitions].conn
+	redisdb, _ := redis.DialURL(redisPool[n%redisParitions].url)
 	queue := "WAREHOUSE_" + strconv.Itoa((n/redisParitions)%queuePartitions)
 	next := make(chan bool, poolSize)
 	pool := make(map[int]chan string)
