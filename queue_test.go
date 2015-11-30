@@ -80,7 +80,7 @@ func BenchmarkRemoveTask(b *testing.B) {
 }
 
 // This will act both as test and example in documentation
-func ExampleAddTaskAnalyse() {
+func ExampleAnalysePool() {
 	QueuesInPartision(1)
 	Partitions([]string{testRedis})
 	AddTask(1, "start")
