@@ -165,6 +165,7 @@ func BenchmarkRemoveTask(b *testing.B) {
 func ExampleAnalysePool() {
 	QueuesInPartision(1)
 	Partitions([]string{"redis://localhost:6379"})
+	redisPool[0].conn.Do("FLUSHALL")
 	AddTask(1, "start")
 	AddTask(2, "start")
 	AddTask(1, "stop")
