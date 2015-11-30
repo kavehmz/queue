@@ -1,5 +1,7 @@
 Queue
 =========
+
+[![Join the chat at https://gitter.im/kavehmz/queue](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/kavehmz/queue?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Go Lang](http://kavehmz.github.io/static/gopher/gopher-front.svg)](https://golang.org/)
 [![GoDoc](https://godoc.org/github.com/kavehmz/queue?status.svg)](https://godoc.org/github.com/kavehmz/queue)
 [![Build Status](https://travis-ci.org/kavehmz/queue.svg?branch=master)](https://travis-ci.org/kavehmz/queue)
