@@ -1,0 +1,9 @@
+language: go
+go:
+  - 1.5
+services:
+  - redis-server
+install:
+  - go get github.com/garyburd/redigo/redis
+script:
+    - go test queue  -bench . -v
