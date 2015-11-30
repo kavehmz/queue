@@ -3,11 +3,12 @@ package queue
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/garyburd/redigo/redis"
 )
 
-var testRedis = "redis://localhost:6379"
+var testRedis = "redis://redisqueue.kaveh.me:6379"
 
 func TestPartitions(t *testing.T) {
 	Partitions([]string{testRedis})
@@ -93,7 +94,7 @@ func BenchmarkRemoveTask(b *testing.B) {
 // This will act both as test and example in documentation
 func ExampleAnalysePool() {
 	QueuesInPartision(1)
-	Partitions([]string{"redis://localhost:6379"})
+	Partitions([]string{"redis://redisqueue.kaveh.me:6379"})
 	AddTask(1, "start")
 	AddTask(2, "start")
 	AddTask(1, "stop")
@@ -102,6 +103,9 @@ func ExampleAnalysePool() {
 		for {
 			select {
 			case msg := <-msg_channel:
+				if id == 2 {
+					time.Sleep(20 * time.Millisecond)
+				}
 				fmt.Println(id, msg)
 				if msg == "stop" {
 					<-next
@@ -114,8 +118,8 @@ func ExampleAnalysePool() {
 	AnalysePool(1, 2, true, analyzer)
 	// Output:
 	// 1 start
-	// 2 start
 	// 1 stop
+	// 2 start
 	// 2 stop
 
 }
