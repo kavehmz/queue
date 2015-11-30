@@ -80,7 +80,10 @@ func TestAnalysePool(t *testing.T) {
 			}
 		}
 	}
-	AnalysePool(1, 2, true, analyzer)
+	exitOnEmpty := func() bool {
+		return true
+	}
+	AnalysePool(1, 2, exitOnEmpty, analyzer)
 	r, e := redisdb.Do("LLEN", "WAREHOUSE_0")
 	s, e := redis.Int64(r, e)
 	if s != 0 {
@@ -114,7 +117,10 @@ func TestAnalysePoolFailurePending(t *testing.T) {
 			}
 		}
 	}
-	AnalysePool(1, 2, true, analyzer)
+	exitOnEmpty := func() bool {
+		return true
+	}
+	AnalysePool(1, 2, exitOnEmpty, analyzer)
 	r, e := redisdb.Do("GET", "PENDING::2")
 	s, e := redis.Int(r, e)
 	if s != 1 {
@@ -143,7 +149,11 @@ func TestAnalysePoolCheckingWaiting(t *testing.T) {
 			}
 		}
 	}
-	go AnalysePool(1, 2, false, analyzer)
+	exit := false
+	exitOnEmpty := func() bool {
+		return exit
+	}
+	go AnalysePool(1, 2, exitOnEmpty, analyzer)
 	time.Sleep(100 * time.Millisecond)
 	r, e := redisdb.Do("GET", "PENDING::2")
 	s, e := redis.Int(r, e)
@@ -157,6 +167,8 @@ func TestAnalysePoolCheckingWaiting(t *testing.T) {
 	if s != 0 {
 		t.Error("Task 2 did not clear: ", s)
 	}
+	exit = true
+	time.Sleep(200 * time.Millisecond)
 }
 
 func BenchmarkAddTask(b *testing.B) {
@@ -208,7 +220,10 @@ func ExampleAnalysePool() {
 			}
 		}
 	}
-	AnalysePool(1, 2, true, analyzer)
+	exitOnEmpty := func() bool {
+		return true
+	}
+	AnalysePool(1, 2, exitOnEmpty, analyzer)
 	// Output:
 	// 1 start
 	// 1 stop
