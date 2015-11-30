@@ -112,6 +112,11 @@ func ExampleAnalysePool() {
 					success <- true
 					return
 				}
+			case <-time.After(2 * time.Second):
+				fmt.Println("no new event for 2 seconds for ID", id)
+				<-next
+				success <- false
+				return
 			}
 		}
 	}
