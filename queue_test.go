@@ -8,7 +8,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
-var testRedis = "redis://redisqueue.kaveh.me:6379"
+var testRedis = "redis://localhost:6379"
 
 func TestPartitions(t *testing.T) {
 	Partitions([]string{testRedis})
@@ -94,7 +94,7 @@ func BenchmarkRemoveTask(b *testing.B) {
 // This will act both as test and example in documentation
 func ExampleAnalysePool() {
 	QueuesInPartision(1)
-	Partitions([]string{"redis://redisqueue.kaveh.me:6379"})
+	Partitions([]string{"redis://localhost:6379"})
 	AddTask(1, "start")
 	AddTask(2, "start")
 	AddTask(1, "stop")
