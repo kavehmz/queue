@@ -147,7 +147,7 @@ func TestAnalysePoolCheckingWaiting(t *testing.T) {
 func BenchmarkAddTask(b *testing.B) {
 	QueuesInPartision(1)
 	Partitions([]string{testRedis})
-	redisdb.Do("FLUSHALL")
+	redisPool[0].conn.Do("FLUSHALL")
 	for i := 0; i < b.N; i++ {
 		AddTask(i, "stop")
 	}
@@ -156,7 +156,7 @@ func BenchmarkAddTask(b *testing.B) {
 func BenchmarkRemoveTask(b *testing.B) {
 	QueuesInPartision(1)
 	Partitions([]string{testRedis})
-	redisdb.Do("FLUSHALL")
+	redisPool[0].conn.Do("FLUSHALL")
 	redisdb := redisPool[0].conn
 	for i := 0; i < b.N; i++ {
 		removeTask(redisdb, "WAREHOUSE_0")
