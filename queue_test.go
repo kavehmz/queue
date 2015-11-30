@@ -18,6 +18,21 @@ func TestPartitions(t *testing.T) {
 	}
 }
 
+func TestPartitionsBadURL(t *testing.T) {
+	paniced := false
+	defer func() {
+		// recover from panic if one occured. Set err to nil otherwise.
+		e := recover()
+		if e != nil {
+			paniced = true
+		}
+	}()
+	Partitions([]string{"redis://127.0.0.1:0"})
+	if !paniced {
+		t.Error("Accepted a bad URL without panic")
+	}
+}
+
 func TestAddTask(t *testing.T) {
 	Partitions([]string{testRedis})
 	redisdb := redisPool[0].conn

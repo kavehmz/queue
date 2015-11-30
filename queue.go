@@ -44,7 +44,8 @@ func Partitions(urls []string) {
 	redisParitions = len(urls)
 	redisPool = redisPool[:0]
 	for _, v := range urls {
-		r, _ := redis.DialURL(v)
+		r, e := redis.DialURL(v)
+		checkErr(e)
 		redisPool = append(redisPool, redisStruct{r, v})
 	}
 }
