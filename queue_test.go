@@ -52,8 +52,19 @@ func TestAnalysePool(t *testing.T) {
 	AddTask(2, "start")
 	AddTask(1, "stop")
 	AddTask(2, "stop")
-	a := analyse
-	AnalysePool(1, 2, true, a)
+	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
+		for {
+			select {
+			case msg := <-msg_channel:
+				if msg == "stop" {
+					<-next
+					success <- true
+					return
+				}
+			}
+		}
+	}
+	AnalysePool(1, 2, true, analyzer)
 	r, e := redisdb.Do("LLEN", "WAREHOUSE_0")
 	s, e := redis.Int64(r, e)
 	if s != 0 {
@@ -82,31 +93,29 @@ func BenchmarkRemoveTask(b *testing.B) {
 // This will act both as test and example in documentation
 func ExampleAnalysePool() {
 	QueuesInPartision(1)
-	Partitions([]string{testRedis})
+	Partitions([]string{"redis://localhost:6379"})
 	AddTask(1, "start")
 	AddTask(2, "start")
 	AddTask(1, "stop")
 	AddTask(2, "stop")
-	a := analyse
-	AnalysePool(1, 2, true, a)
+	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
+		for {
+			select {
+			case msg := <-msg_channel:
+				fmt.Println(id, msg)
+				if msg == "stop" {
+					<-next
+					success <- true
+					return
+				}
+			}
+		}
+	}
+	AnalysePool(1, 2, true, analyzer)
 	// Output:
 	// 1 start
 	// 2 start
 	// 1 stop
 	// 2 stop
 
-}
-
-func analyse(id int, msg_channel chan string, success chan bool, next chan bool) {
-	for {
-		select {
-		case msg := <-msg_channel:
-			fmt.Println(id, msg)
-			if msg == "stop" {
-				<-next
-				success <- true
-				return
-			}
-		}
-	}
 }
