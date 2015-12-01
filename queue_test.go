@@ -45,8 +45,8 @@ func TestAddTask(t *testing.T) {
 	}
 }
 
-func TestQueuesInPartision(t *testing.T) {
-	QueuesInPartision(5)
+func TestQueuesInPartition(t *testing.T) {
+	QueuesInPartition(5)
 	Partitions([]string{testRedis})
 	redisdb := redisPool[0].conn
 	redisdb.Do("FLUSHALL")
@@ -60,7 +60,7 @@ func TestQueuesInPartision(t *testing.T) {
 }
 
 func TestAnalysePool(t *testing.T) {
-	QueuesInPartision(1)
+	QueuesInPartition(1)
 	Partitions([]string{testRedis})
 	redisdb := redisPool[0].conn
 	redisdb.Do("FLUSHALL")
@@ -93,7 +93,7 @@ func TestAnalysePool(t *testing.T) {
 }
 
 func TestAnalysePoolFailurePending(t *testing.T) {
-	QueuesInPartision(1)
+	QueuesInPartition(1)
 	Partitions([]string{testRedis})
 	redisdb := redisPool[0].conn
 	redisdb.Do("FLUSHALL")
@@ -130,7 +130,7 @@ func TestAnalysePoolFailurePending(t *testing.T) {
 }
 
 func TestAnalysePoolCheckingWaiting(t *testing.T) {
-	QueuesInPartision(1)
+	QueuesInPartition(1)
 	Partitions([]string{testRedis})
 	redisdb := redisPool[0].conn
 	redisdb.Do("FLUSHALL")
@@ -172,7 +172,7 @@ func TestAnalysePoolCheckingWaiting(t *testing.T) {
 }
 
 func BenchmarkAddTask(b *testing.B) {
-	QueuesInPartision(1)
+	QueuesInPartition(1)
 	Partitions([]string{testRedis})
 	redisPool[0].conn.Do("FLUSHALL")
 	for i := 0; i < b.N; i++ {
@@ -181,7 +181,7 @@ func BenchmarkAddTask(b *testing.B) {
 }
 
 func BenchmarkRemoveTask(b *testing.B) {
-	QueuesInPartision(1)
+	QueuesInPartition(1)
 	Partitions([]string{testRedis})
 	redisPool[0].conn.Do("FLUSHALL")
 	redisdb := redisPool[0].conn
@@ -192,7 +192,7 @@ func BenchmarkRemoveTask(b *testing.B) {
 
 // This will act both as test and example in documentation
 func ExampleAnalysePool() {
-	QueuesInPartision(1)
+	QueuesInPartition(1)
 	Partitions([]string{"redis://localhost:6379"})
 	redisPool[0].conn.Do("FLUSHALL")
 	AddTask(1, "start")

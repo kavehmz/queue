@@ -3,7 +3,7 @@
 // Queues can be partitions in to more than one Redis and each redis can keep more than one queue.
 //
 // Number of redis paritions is set by using Partitions function and setting slice of Redis URL connections.
-// To set number of queues in each redis you can use QueuesInPartision functions.
+// To set number of queues in each redis you can use QueuesInPartition functions.
 //
 // Partitioning factor to identify where each event must save is the task ID which is set while using AddTask.
 // RedisParition => Id % redisParitions
@@ -32,9 +32,9 @@ type redisStruct struct {
 
 var redisPool []redisStruct
 
-// QueuesInPartision set number of queue in each partition. Each analyser will work on one queue in one partition and start its workers.
+// QueuesInPartition set number of queue in each partition. Each analyser will work on one queue in one partition and start its workers.
 // This paritioning is for safely distributing related task into one queue
-func QueuesInPartision(n int) {
+func QueuesInPartition(n int) {
 	queuePartitions = n
 }
 

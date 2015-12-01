@@ -27,7 +27,7 @@ import (
 
 func main() {
 
-	queue.QueuesInPartision(1)
+	queue.QueuesInPartition(1)
 	queue.Partitions([]string{"redis://localhost:6379"})
 	queue.AddTask(1, "start")
 	queue.AddTask(2, "start")
