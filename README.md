@@ -57,7 +57,7 @@ func main() {
 	exitOnEmpty := func() bool {
 		return true
 	}
-	queue.AnalysePool(1, 2, exitOnEmpty, analyzer)
+	queue.AnalysePool(1, 2, 2, exitOnEmpty, analyzer)
 
 }
 ```

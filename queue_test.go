@@ -8,7 +8,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
-var testRedis = "redis://localhost:6379"
+var testRedis = "redis://redisqueue.kaveh.me:6379"
 
 func TestPartitions(t *testing.T) {
 	Partitions([]string{testRedis})
@@ -83,7 +83,7 @@ func TestAnalysePool(t *testing.T) {
 	exitOnEmpty := func() bool {
 		return true
 	}
-	AnalysePool(1, 2, exitOnEmpty, analyzer)
+	AnalysePool(1, 2, 1, exitOnEmpty, analyzer)
 	r, e := redisdb.Do("LLEN", "WAREHOUSE_0")
 	s, e := redis.Int64(r, e)
 	if s != 0 {
@@ -120,7 +120,7 @@ func TestAnalysePoolFailurePending(t *testing.T) {
 	exitOnEmpty := func() bool {
 		return true
 	}
-	AnalysePool(1, 2, exitOnEmpty, analyzer)
+	AnalysePool(1, 2, 1, exitOnEmpty, analyzer)
 	r, e := redisdb.Do("GET", "PENDING::2")
 	s, e := redis.Int(r, e)
 	if s != 1 {
@@ -153,7 +153,7 @@ func TestAnalysePoolCheckingWaiting(t *testing.T) {
 	exitOnEmpty := func() bool {
 		return exit
 	}
-	go AnalysePool(1, 2, exitOnEmpty, analyzer)
+	go AnalysePool(1, 2, 1, exitOnEmpty, analyzer)
 	time.Sleep(100 * time.Millisecond)
 	r, e := redisdb.Do("GET", "PENDING::2")
 	s, e := redis.Int(r, e)
@@ -193,7 +193,7 @@ func BenchmarkRemoveTask(b *testing.B) {
 // This will act both as test and example in documentation
 func ExampleAnalysePool() {
 	QueuesInPartision(1)
-	Partitions([]string{"redis://localhost:6379"})
+	Partitions([]string{"redis://redisqueue.kaveh.me:6379"})
 	redisPool[0].conn.Do("FLUSHALL")
 	AddTask(1, "start")
 	AddTask(2, "start")
@@ -223,7 +223,7 @@ func ExampleAnalysePool() {
 	exitOnEmpty := func() bool {
 		return true
 	}
-	AnalysePool(1, 2, exitOnEmpty, analyzer)
+	AnalysePool(1, 2, 1, exitOnEmpty, analyzer)
 	// Output:
 	// 1 start
 	// 1 stop

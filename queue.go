@@ -86,14 +86,15 @@ func removeTask(redisdb redis.Conn, queue string) (int, string) {
 // AnalysePool will accept following paramters:
 // n that is an int id which will specift which redis and which queue in that redis will be assign to this analyzer.
 // poolSize which set max number of buffered Channels (concurrent workers) for analyzing the tasks.
+// msgChannelBuff, an int that sets buffer size of msgChannel. Is Analyse operatino is slow setting msgChannelBuff to higher number will prevent execution bottle-neck in AnalysePool.
 // exitOnEmpty is a closure function which will control if AnalysePool must exit when queue is empty. exitOnEmpty format is func() bool
 // analyzer is a function with following parameters (id int, msg_channel chan string, success chan bool, next chan bool)
 // analyzer will get ID of the task it is working on in id,
-// msg_channel will be used to send related tasks to the analyzer function. There can be more than one task with the same ID if needed.
+// msgChannel will be used to send related tasks to the analyzer function. There can be more than one task with the same ID if needed.
 // success to indicate success or failure of analyzer.
 // next to signal when it is OK for AnalysePool to start the next tasks. Normally this should be calls before ending analyzer.
 // If a task does not return by sucess or crashes, all non-complete analyzes can be found by searching for PENDING::* keys in Redis. * will indicate the ID of failed tasks.
-func AnalysePool(n int, poolSize int, exitOnEmpty func() bool, analyzer func(int, chan string, chan bool, chan bool)) {
+func AnalysePool(n int, poolSize int, msgChannelBuff int, exitOnEmpty func() bool, analyzer func(int, chan string, chan bool, chan bool)) {
 	redisdb, _ := redis.DialURL(redisPool[n%redisParitions].url)
 	queue := "WAREHOUSE_" + strconv.Itoa((n/redisParitions)%queuePartitions)
 	next := make(chan bool, poolSize)
@@ -110,7 +111,7 @@ func AnalysePool(n int, poolSize int, exitOnEmpty func() bool, analyzer func(int
 			}
 		} else {
 			if pool[id] == nil {
-				pool[id] = make(chan string)
+				pool[id] = make(chan string, msgChannelBuff)
 				success := make(chan bool)
 				go analyzer(id, pool[id], success, next)
 				go waitforSuccess(n, id, success, pool)
