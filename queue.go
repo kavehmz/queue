@@ -10,7 +10,7 @@ In case of crash record of all incomplete tasks will be kepts in redis as keys w
 	QUEUE::PENDING::ID
 ID will indicate the ID of failed tasks.
 
-To use this library you need to define a struct.
+To use this library you need to use queue struct.
 
 	var q Queue
 	q.Urls([]{redis://localhost:6379})
