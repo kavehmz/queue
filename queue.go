@@ -129,7 +129,7 @@ func (q *Queue) AnalysePool(analyzerID int, exitOnEmpty func() bool, analyzer fu
 		}
 	}
 
-	for i := 0; i < q.AnalyzerBuff; i++ {
+	for i := 0; i < buff; i++ {
 		next <- true
 	}
 }
