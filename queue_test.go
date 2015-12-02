@@ -8,7 +8,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
-var testRedis = "redis://localhost:6379"
+var testRedis = "redis://redisqueue.kaveh.me:6379"
 
 func TestQueue_Urls(t *testing.T) {
 	var q Queue
@@ -19,7 +19,7 @@ func TestQueue_Urls(t *testing.T) {
 	}
 }
 
-func testBadURL(t *testing.T) {
+func TestBadURL(t *testing.T) {
 	paniced := false
 	defer func() {
 		e := recover()
@@ -47,11 +47,26 @@ func TestQueue_AddTask(t *testing.T) {
 	}
 }
 
+func TestQueue_QueueName(t *testing.T) {
+	var q Queue
+	q.Urls([]string{testRedis})
+	q.QueueName = "CUSTOM"
+	redisdb := q.pool[0]
+	redisdb.Do("FLUSHALL")
+	q.AddTask(4, "test")
+	r, e := redisdb.Do("RPOP", "CUSTOM")
+	s, e := redis.String(r, e)
+	if s != "4;test" {
+		t.Error("Task is stored incorrectly: ", s)
+	}
+}
+
 func TestQueue_AnalysePool(t *testing.T) {
 	var q Queue
 	q.Urls([]string{testRedis})
 	redisdb := q.pool[0]
 	redisdb.Do("FLUSHALL")
+	q.QueueName = "CUSTOM"
 	q.AddTask(1, "start")
 	q.AddTask(2, "start")
 	q.AddTask(1, "stop")
