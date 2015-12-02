@@ -10,64 +10,52 @@ import (
 
 var testRedis = "redis://localhost:6379"
 
-func TestPartitions(t *testing.T) {
-	Partitions([]string{testRedis})
-	_, err := redisPool[0].conn.Do("PING")
+func TestQueue_Urls(t *testing.T) {
+	var q Queue
+	q.Urls([]string{testRedis})
+	_, err := q.pool[0].Do("PING")
 	if err != nil {
 		t.Error("SetRedisPool items are not set correctly")
 	}
 }
 
-func TestPartitionsBadURL(t *testing.T) {
+func testBadURL(t *testing.T) {
 	paniced := false
 	defer func() {
-		// recover from panic if one occured. Set err to nil otherwise.
 		e := recover()
 		if e != nil {
 			paniced = true
 		}
 	}()
-	Partitions([]string{"redis://127.0.0.1:0"})
+	var q Queue
+	q.Urls([]string{"redis://127.0.0.1:0"})
 	if !paniced {
 		t.Error("Accepted a bad URL without panic")
 	}
 }
 
-func TestAddTask(t *testing.T) {
-	Partitions([]string{testRedis})
-	redisdb := redisPool[0].conn
+func TestQueue_AddTask(t *testing.T) {
+	var q Queue
+	q.Urls([]string{testRedis})
+	redisdb := q.pool[0]
 	redisdb.Do("FLUSHALL")
-	AddTask(4, "test")
-	r, e := redisdb.Do("RPOP", "WAREHOUSE_0")
+	q.AddTask(4, "test")
+	r, e := redisdb.Do("RPOP", "QUEUE")
 	s, e := redis.String(r, e)
 	if s != "4;test" {
 		t.Error("Task is stored incorrectly: ", s)
 	}
 }
 
-func TestQueuesInPartition(t *testing.T) {
-	QueuesInPartition(5)
-	Partitions([]string{testRedis})
-	redisdb := redisPool[0].conn
+func TestQueue_AnalysePool(t *testing.T) {
+	var q Queue
+	q.Urls([]string{testRedis})
+	redisdb := q.pool[0]
 	redisdb.Do("FLUSHALL")
-	AddTask(4, "test")
-	r, e := redisdb.Do("RPOP", "WAREHOUSE_4")
-	s, e := redis.String(r, e)
-	if s != "4;test" {
-		t.Error("Task is stored incorrectly: ", s)
-	}
-
-}
-
-func TestAnalysePool(t *testing.T) {
-	QueuesInPartition(1)
-	Partitions([]string{testRedis})
-	redisdb := redisPool[0].conn
-	redisdb.Do("FLUSHALL")
-	AddTask(1, "start")
-	AddTask(2, "start")
-	AddTask(1, "stop")
-	AddTask(2, "stop")
+	q.AddTask(1, "start")
+	q.AddTask(2, "start")
+	q.AddTask(1, "stop")
+	q.AddTask(2, "stop")
 	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
 		for {
 			select {
@@ -83,8 +71,8 @@ func TestAnalysePool(t *testing.T) {
 	exitOnEmpty := func() bool {
 		return true
 	}
-	AnalysePool(1, 2, 1, exitOnEmpty, analyzer)
-	r, e := redisdb.Do("LLEN", "WAREHOUSE_0")
+	q.AnalysePool(1, exitOnEmpty, analyzer)
+	r, e := redisdb.Do("LLEN", "QUEUE")
 	s, e := redis.Int64(r, e)
 	if s != 0 {
 		t.Error("Queue is not empty after processing tasks: ", s)
@@ -93,13 +81,13 @@ func TestAnalysePool(t *testing.T) {
 }
 
 func TestAnalysePoolFailurePending(t *testing.T) {
-	QueuesInPartition(1)
-	Partitions([]string{testRedis})
-	redisdb := redisPool[0].conn
+	var q Queue
+	q.Urls([]string{testRedis})
+	redisdb := q.pool[0]
 	redisdb.Do("FLUSHALL")
-	AddTask(1, "start")
-	AddTask(2, "start")
-	AddTask(1, "stop")
+	q.AddTask(1, "start")
+	q.AddTask(2, "start")
+	q.AddTask(1, "stop")
 	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
 		for {
 			select {
@@ -120,8 +108,8 @@ func TestAnalysePoolFailurePending(t *testing.T) {
 	exitOnEmpty := func() bool {
 		return true
 	}
-	AnalysePool(1, 2, 1, exitOnEmpty, analyzer)
-	r, e := redisdb.Do("GET", "PENDING::2")
+	q.AnalysePool(1, exitOnEmpty, analyzer)
+	r, e := redisdb.Do("GET", "QUEUE::PENDING::2")
 	s, e := redis.Int(r, e)
 	if s != 1 {
 		t.Error("Task id 2 is not pending: ", s)
@@ -130,13 +118,13 @@ func TestAnalysePoolFailurePending(t *testing.T) {
 }
 
 func TestAnalysePoolCheckingWaiting(t *testing.T) {
-	QueuesInPartition(1)
-	Partitions([]string{testRedis})
-	redisdb := redisPool[0].conn
+	var q Queue
+	q.Urls([]string{testRedis})
+	redisdb := q.pool[0]
 	redisdb.Do("FLUSHALL")
-	AddTask(1, "start")
-	AddTask(2, "start")
-	AddTask(1, "stop")
+	q.AddTask(1, "start")
+	q.AddTask(2, "start")
+	q.AddTask(1, "stop")
 	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
 		for {
 			select {
@@ -153,16 +141,16 @@ func TestAnalysePoolCheckingWaiting(t *testing.T) {
 	exitOnEmpty := func() bool {
 		return exit
 	}
-	go AnalysePool(1, 2, 1, exitOnEmpty, analyzer)
+	go q.AnalysePool(1, exitOnEmpty, analyzer)
 	time.Sleep(100 * time.Millisecond)
-	r, e := redisdb.Do("GET", "PENDING::2")
+	r, e := redisdb.Do("GET", "QUEUE::PENDING::2")
 	s, e := redis.Int(r, e)
 	if s != 1 {
 		t.Error("Task id 2 is not pending after queue is empty: ", s)
 	}
-	AddTask(2, "stop")
+	q.AddTask(2, "stop")
 	time.Sleep(200 * time.Millisecond)
-	r, e = redisdb.Do("GET", "PENDING::2")
+	r, e = redisdb.Do("GET", "QUEUE::PENDING::2")
 	s, e = redis.Int(r, e)
 	if s != 0 {
 		t.Error("Task 2 did not clear: ", s)
@@ -171,34 +159,37 @@ func TestAnalysePoolCheckingWaiting(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 }
 
-func BenchmarkAddTask(b *testing.B) {
-	QueuesInPartition(1)
-	Partitions([]string{testRedis})
-	redisPool[0].conn.Do("FLUSHALL")
+func BenchmarkQueue_AddTask(b *testing.B) {
+	var q Queue
+	q.Urls([]string{testRedis})
+	q.pool[0].Do("FLUSHALL")
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		AddTask(i, "stop")
+		q.AddTask(i, "stop")
 	}
 }
 
 func BenchmarkRemoveTask(b *testing.B) {
-	QueuesInPartition(1)
-	Partitions([]string{testRedis})
-	redisPool[0].conn.Do("FLUSHALL")
-	redisdb := redisPool[0].conn
+	var q Queue
+	q.Urls([]string{testRedis})
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		removeTask(redisdb, "WAREHOUSE_0")
+		_, s := removeTask(q.pool[0], "QUEUE")
+		if s == "" {
+			panic("Reached an empty queue. Benchmark is not valid:")
+		}
 	}
 }
 
 // This will act both as test and example in documentation
-func ExampleAnalysePool() {
-	QueuesInPartition(1)
-	Partitions([]string{"redis://localhost:6379"})
-	redisPool[0].conn.Do("FLUSHALL")
-	AddTask(1, "start")
-	AddTask(2, "start")
-	AddTask(1, "stop")
-	AddTask(2, "stop")
+func ExampleQueue_AnalysePool() {
+	var q Queue
+	q.Urls([]string{testRedis})
+	q.pool[0].Do("FLUSHALL")
+	q.AddTask(1, "start")
+	q.AddTask(2, "start")
+	q.AddTask(1, "stop")
+	q.AddTask(2, "stop")
 	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
 		for {
 			select {
@@ -223,7 +214,7 @@ func ExampleAnalysePool() {
 	exitOnEmpty := func() bool {
 		return true
 	}
-	AnalysePool(1, 2, 1, exitOnEmpty, analyzer)
+	q.AnalysePool(1, exitOnEmpty, analyzer)
 	// Output:
 	// 1 start
 	// 1 stop
