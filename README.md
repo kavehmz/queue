@@ -6,7 +6,9 @@ Queue
 [![Coverage Status](https://coveralls.io/repos/kavehmz/queue/badge.svg?branch=master&service=github)](https://coveralls.io/github/kavehmz/queue?branch=master)
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/kavehmz/queue)
 
-A [Go](http://golang.org) library for managing queues on top of Redis. It is based on an hiring exercise I did at some point. I thought it might be useful in general.
+A [Go](http://golang.org) library for managing queues on top of Redis. 
+It is based on a hiring exercise but later I found it useful for myself in a custom task processing project. 
+I thought it might be useful in general.
 
 
 ## Installation
@@ -26,13 +28,13 @@ import (
 )
 
 func main() {
-
-	queue.QueuesInPartition(1)
-	queue.Partitions([]string{"redis://localhost:6379"})
-	queue.AddTask(1, "start")
-	queue.AddTask(2, "start")
-	queue.AddTask(1, "stop")
-	queue.AddTask(2, "stop")
+	var q Queue
+	q.Urls([]string{testRedis})
+	q.pool[0].Do("FLUSHALL")
+	q.AddTask(1, "start")
+	q.AddTask(2, "start")
+	q.AddTask(1, "stop")
+	q.AddTask(2, "stop")
 	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
 		for {
 			select {
@@ -57,7 +59,7 @@ func main() {
 	exitOnEmpty := func() bool {
 		return true
 	}
-	queue.AnalysePool(1, 2, 2, exitOnEmpty, analyzer)
+	q.AnalysePool(1, exitOnEmpty, analyzer)
 
 }
 ```
