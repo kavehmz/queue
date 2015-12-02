@@ -34,26 +34,18 @@ AnalysePool accepts 3 parameters. One analyzerID that will identify which redis 
 
 	whichRedis=len(q.urls) % analyzerID
 
-AnalysePool need two closued, analyzer and exitOnEmpty. Format of those closure are as follows.
+AnalysePool need two closures, analyzer and exitOnEmpty. Format of those closure are as follows.
 
 	analyzer := func(id int, task chan string, success chan bool, next chan bool) {
 		for {
 			select {
 			case msg := <-task:
-				if id == 2 {
-					time.Sleep(20 * time.Millisecond)
-				}
-				fmt.Println(id, msg)
-				if msg == "stop" {
+				//process the task
+				if msg == "stop_indicator" {
 					<-next
 					success <- true
 					return
 				}
-			case <-time.After(2 * time.Second):
-				fmt.Println("no new event for 2 seconds for ID", id)
-				<-next
-				success <- false
-				return
 			}
 		}
 	}
@@ -61,7 +53,6 @@ AnalysePool need two closued, analyzer and exitOnEmpty. Format of those closure 
 		return true
 	}
 	q.AnalysePool(1, exitOnEmpty, analyzer)
-
 */
 package queue
 
@@ -166,7 +157,6 @@ analyzer is a closure function which will be called for processing the tasks pop
 		}
 	}
 Analyser clousre must be able to accept the new Tasks without delay and if needed process them concurrently. Delay in accepting new Task will block AnalysePool.
-
 */
 func (q *Queue) AnalysePool(analyzerID int, exitOnEmpty func() bool, analyzer func(int, chan string, chan bool, chan bool)) {
 	redisdb, _ := redis.DialURL(q.urls[q.paritions%analyzerID])
