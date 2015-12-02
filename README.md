@@ -29,19 +29,15 @@ import (
 
 func main() {
 	var q Queue
-	q.Urls([]string{testRedis})
-	q.pool[0].Do("FLUSHALL")
+	q.Urls([]string{"redis://127.0.0.1:0"})
 	q.AddTask(1, "start")
 	q.AddTask(2, "start")
 	q.AddTask(1, "stop")
 	q.AddTask(2, "stop")
-	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
+	analyzer := func(id int, task chan string, success chan bool, next chan bool) {
 		for {
 			select {
-			case msg := <-msg_channel:
-				if id == 2 {
-					time.Sleep(20 * time.Millisecond)
-				}
+			case msg := <-task:
 				fmt.Println(id, msg)
 				if msg == "stop" {
 					<-next
@@ -49,7 +45,7 @@ func main() {
 					return
 				}
 			case <-time.After(2 * time.Second):
-				fmt.Println("no new event for 2 seconds for ID", id)
+				fmt.Println("no new events for 2 seconds for ID", id)
 				<-next
 				success <- false
 				return
