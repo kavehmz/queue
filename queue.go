@@ -1,17 +1,68 @@
-// queue is a simple Queue system written in Go that will use Redis underneath.
-// Focus of this design is mainly horisontal scalability via concurrency, paritioning and fault-detection
-// Queues can be partitions in to more than one Redis and each redis can keep more than one queue.
-//
-// Number of redis paritions is set by using Partitions function and setting slice of Redis URL connections.
-// To set number of queues in each redis you can use QueuesInPartition functions.
-//
-// Partitioning factor to identify where each event must save is the task ID which is set while using AddTask.
-// RedisParition => Id % redisParitions.
-//
-// Queue => (OrderID/redisParitions) % queuePartitions.
-//
-// If more than two or more tasks are added with the same ID, this library will make sure they are all sent to the same analyzer.
-// Using the same ID can help in cases that there is a relation between some tasks and they must be analyzed together.
+/*
+queue is a simple Queue system written in Go that will use Redis underneath.
+Focus of this design is mainly horisontal scalability via concurrency, paritioning and fault-detection
+Queues can be partitions in to more than one Redis is necessary.
+
+Number of redis paritions is set by using Urls function and setting slice of Redis URL connections.
+Redis paritioning is required in cases that one redis cannot handle the load because of IO, moemory or in rare situations CPU limitations.
+
+In case of crash record of all incomplete tasks will be kepts in redis as keys with this format
+	QUEUE::PENDING::ID
+ID will indicate the ID of failed tasks.
+
+To use this library you need to define a struct.
+
+	var q Queue
+	q.Urls([]{redis://localhost:6379})
+
+Adding tasks is done by calling AddTask. This function will accept an ID and the task itself that will be as a string.
+
+	q.AddTask(1, "task1")
+	q.AddTask(2, "task2")
+
+ID can be used in a special way. If ID of two tasks are the same while processing AnalysePool will send them to the same analyser goroutine if analyzer waits enough.
+
+	q.AddTask(2, "start")
+	q.AddTask(1, "load")
+	q.AddTask(2, "load")
+	q.AddTask(1, "stop")
+	q.AddTask(2, "stop")
+
+This feature can be used in analyser needs to process a set of related tasks one after another.
+
+AnalysePool accepts 3 parameters. One analyzerID that will identify which redis pool this AnalysePool will connect to.
+
+	whichRedis=len(q.urls) % analyzerID
+
+AnalysePool need two closued, analyzer and exitOnEmpty. Format of those closure are as follows.
+
+	analyzer := func(id int, task chan string, success chan bool, next chan bool) {
+		for {
+			select {
+			case msg := <-task:
+				if id == 2 {
+					time.Sleep(20 * time.Millisecond)
+				}
+				fmt.Println(id, msg)
+				if msg == "stop" {
+					<-next
+					success <- true
+					return
+				}
+			case <-time.After(2 * time.Second):
+				fmt.Println("no new event for 2 seconds for ID", id)
+				<-next
+				success <- false
+				return
+			}
+		}
+	}
+	exitOnEmpty := func() bool {
+		return true
+	}
+	q.AnalysePool(1, exitOnEmpty, analyzer)
+
+*/
 package queue
 
 import (
@@ -23,7 +74,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
-//Queue defines a queue and its config.
+//Queue the strcuture that will ecompass the queue settings and methods.
 type Queue struct {
 	// AnalyzeBuff will set number of concurrent running anlyzers. It will default to number of cpu if not set.
 	AnalyzerBuff int
@@ -84,17 +135,39 @@ func removeTask(redisdb redis.Conn, queueName string) (int, string) {
 	return 0, ""
 }
 
-// AnalysePool will accept following paramters:
-// n that is an int id which will specift which redis and which queue in that redis will be assign to this analyzer.
-// poolSize which set max number of buffered Channels (concurrent workers) for analyzing the tasks.
-// msgChannelBuff, an int that sets buffer size of msgChannel. Is Analyse operatino is slow setting msgChannelBuff to higher number will prevent execution bottle-neck in AnalysePool.
-// exitOnEmpty is a closure function which will control if AnalysePool must exit when queue is empty. exitOnEmpty format is func() bool
-// analyzer is a function with following parameters (id int, msg_channel chan string, success chan bool, next chan bool)
-// analyzer will get ID of the task it is working on in id,
-// msgChannel will be used to send related tasks to the analyzer function. There can be more than one task with the same ID if needed.
-// success to indicate success or failure of analyzer.
-// next to signal when it is OK for AnalysePool to start the next tasks. Normally this should be calls before ending analyzer.
-// If a task does not return by sucess or crashes, all non-complete analyzes can be found by searching for PENDING::* keys in Redis. * will indicate the ID of failed tasks.
+/*
+AnalysePool can be calls to process redis queue(s).
+analyzerID will set which redis AnalysePool will connect to (redis:=pool[len(urls)%AnalysePool])
+
+exitOnEmpty is a closure function which will control inner loop of AnalysePool when queue is empty.
+	exitOnEmpty := func() bool {
+		return true
+	}
+analyzer is a closure function which will be called for processing the tasks popped from queue.
+	analyzer := func(id int, task chan string, success chan bool, next chan bool) {
+		for {
+			select {
+			case msg := <-task:
+				if id == 2 {
+					time.Sleep(20 * time.Millisecond)
+				}
+				fmt.Println(id, msg)
+				if msg == "stop" {
+					<-next
+					success <- true
+					return
+				}
+			case <-time.After(2 * time.Second):
+				fmt.Println("no new event for 2 seconds for ID", id)
+				<-next
+				success <- false
+				return
+			}
+		}
+	}
+Analyser clousre must be able to accept the new Tasks without delay and if needed process them concurrently. Delay in accepting new Task will block AnalysePool.
+
+*/
 func (q *Queue) AnalysePool(analyzerID int, exitOnEmpty func() bool, analyzer func(int, chan string, chan bool, chan bool)) {
 	redisdb, _ := redis.DialURL(q.urls[q.paritions%analyzerID])
 	queueName := "QUEUE"

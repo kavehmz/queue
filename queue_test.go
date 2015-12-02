@@ -10,7 +10,7 @@ import (
 
 var testRedis = "redis://localhost:6379"
 
-func TestUrls(t *testing.T) {
+func TestQueue_Urls(t *testing.T) {
 	var q Queue
 	q.Urls([]string{testRedis})
 	_, err := q.pool[0].Do("PING")
@@ -22,7 +22,6 @@ func TestUrls(t *testing.T) {
 func testBadURL(t *testing.T) {
 	paniced := false
 	defer func() {
-		// recover from panic if one occured. Set err to nil otherwise.
 		e := recover()
 		if e != nil {
 			paniced = true
@@ -35,7 +34,7 @@ func testBadURL(t *testing.T) {
 	}
 }
 
-func TestAddTask(t *testing.T) {
+func TestQueue_AddTask(t *testing.T) {
 	var q Queue
 	q.Urls([]string{testRedis})
 	redisdb := q.pool[0]
@@ -48,7 +47,7 @@ func TestAddTask(t *testing.T) {
 	}
 }
 
-func TestAnalysePool(t *testing.T) {
+func TestQueue_AnalysePool(t *testing.T) {
 	var q Queue
 	q.Urls([]string{testRedis})
 	redisdb := q.pool[0]
@@ -160,7 +159,7 @@ func TestAnalysePoolCheckingWaiting(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 }
 
-func BenchmarkAddTask(b *testing.B) {
+func BenchmarkQueue_AddTask(b *testing.B) {
 	var q Queue
 	q.Urls([]string{testRedis})
 	q.pool[0].Do("FLUSHALL")
@@ -183,7 +182,7 @@ func BenchmarkRemoveTask(b *testing.B) {
 }
 
 // This will act both as test and example in documentation
-func ExampleAnalysePool() {
+func ExampleQueue_AnalysePool() {
 	var q Queue
 	q.Urls([]string{testRedis})
 	q.pool[0].Do("FLUSHALL")
