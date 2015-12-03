@@ -1,13 +1,13 @@
 /*
-queue is a simple Queue system written in Go that will use Redis underneath.
+queue is a simple Queue system written in Go that will uses Redis.
 Focus of this design is mainly horisontal scalability via concurrency, paritioning and fault-detection
-Queues can be partitions in to more than one Redis is necessary.
+Queues can be partitions in to more than one Redis if necessary.
 
 Number of redis paritions is set by using Urls function and setting slice of Redis URL connections.
 Redis paritioning is required in cases that one redis cannot handle the load because of IO, moemory or in rare situations CPU limitations.
 
 In case of crash record of all incomplete tasks will be kepts in redis as keys with this format
-	QUEUE::PENDING::ID
+	QUEUE::0::PENDING::ID
 ID will indicate the ID of failed tasks.
 
 To use this library you need to use queue struct.
@@ -28,11 +28,15 @@ ID can be used in a special way. If ID of two tasks are the same while processin
 	q.AddTask(1, "stop")
 	q.AddTask(2, "stop")
 
-This feature can be used in analyser needs to process a set of related tasks one after another.
+This feature can be used in analyser to process a set of related tasks one after another.
+If you are adding ID related tasks and you need to spinup more than one AnalysePool to fetch and distribute tasks you need to insert the tasks into separate queue or separate redis servers.
+To have separate queues you can set Queues number in the queue strcuture.
+
+	whichQueue=id % q.Queues
 
 AnalysePool accepts 3 parameters. One analyzerID that will identify which redis pool this AnalysePool will connect to.
 
-	whichRedis=len(q.urls) % analyzerID
+	whichRedis=(analyzerID/q.Queues) % len(q.urls)
 
 AnalysePool need two closures, analyzer and exitOnEmpty. Format of those closure are as follows.
 
@@ -71,7 +75,7 @@ type Queue struct {
 	AnalyzerBuff int
 	// QueueName this will set the name used in udnerlying system for the queue. Default is "QUEUE"
 	QueueName string
-	// Number of queues in each redis server. This is useful if batching of tasks based on ID is needed and more than one Analsepool is required for scalability.
+	// Number of queues in each redis server. This is useful if you have ID related tasks and you need more than one AnalysePool. Default is 1
 	Queues int
 	urls   []string
 	pool   []redis.Conn
