@@ -8,7 +8,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
-var testRedis = "redis://localhost:6379"
+var testRedis = "redis://redisqueue.kaveh.me:6379"
 
 func TestQueue_Urls(t *testing.T) {
 	var q Queue
@@ -189,7 +189,7 @@ func BenchmarkRemoveTask(b *testing.B) {
 	q.Urls([]string{testRedis})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, s := removeTask(q.pool[0], "QUEUE")
+		_, s := q.removeTask(q.pool[0])
 		if s == "" {
 			panic("Reached an empty queue. Benchmark is not valid:")
 		}
