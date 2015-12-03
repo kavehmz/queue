@@ -1,13 +1,13 @@
 /*
-queue is a simple Queue system written in Go that will use Redis underneath.
+queue is a simple Queue system written in Go that will uses Redis.
 Focus of this design is mainly horisontal scalability via concurrency, paritioning and fault-detection
-Queues can be partitions in to more than one Redis is necessary.
+Queues can be partitions in to more than one Redis if necessary.
 
 Number of redis paritions is set by using Urls function and setting slice of Redis URL connections.
 Redis paritioning is required in cases that one redis cannot handle the load because of IO, moemory or in rare situations CPU limitations.
 
 In case of crash record of all incomplete tasks will be kepts in redis as keys with this format
-	QUEUE::PENDING::ID
+	QUEUE::0::PENDING::ID
 ID will indicate the ID of failed tasks.
 
 To use this library you need to use queue struct.
@@ -28,11 +28,15 @@ ID can be used in a special way. If ID of two tasks are the same while processin
 	q.AddTask(1, "stop")
 	q.AddTask(2, "stop")
 
-This feature can be used in analyser needs to process a set of related tasks one after another.
+This feature can be used in analyser to process a set of related tasks one after another.
+If you are adding ID related tasks and you need to spinup more than one AnalysePool to fetch and distribute tasks you need to insert the tasks into separate queue or separate redis servers.
+To have separate queues you can set Queues number in the queue strcuture.
+
+	whichQueue=id % q.Queues
 
 AnalysePool accepts 3 parameters. One analyzerID that will identify which redis pool this AnalysePool will connect to.
 
-	whichRedis=len(q.urls) % analyzerID
+	whichRedis=(analyzerID/q.Queues) % len(q.urls)
 
 AnalysePool need two closures, analyzer and exitOnEmpty. Format of those closure are as follows.
 
@@ -71,9 +75,39 @@ type Queue struct {
 	AnalyzerBuff int
 	// QueueName this will set the name used in udnerlying system for the queue. Default is "QUEUE"
 	QueueName string
-	paritions int
-	urls      []string
-	pool      []redis.Conn
+	// Number of queues in each redis server. This is useful if you have ID related tasks and you need more than one AnalysePool. Default is 1
+	Queues int
+	urls   []string
+	pool   []redis.Conn
+}
+
+func (q *Queue) queues() int {
+	if q.Queues != 0 {
+		return q.Queues
+	}
+	return 1
+}
+
+func (q *Queue) pendingKeyName(id int) string {
+	return q.queueName(id) + "::PENDING::" + strconv.Itoa(id)
+}
+
+func (q *Queue) redisID(id int) int {
+	return (id / q.queues()) % len(q.urls)
+}
+
+func (q *Queue) queueName(id int) string {
+	if q.QueueName != "" {
+		return q.QueueName + "::" + strconv.Itoa(id%q.queues())
+	}
+	return "QUEUE" + "::" + strconv.Itoa(id%q.queues())
+}
+
+func (q *Queue) analyzerBuff() int {
+	if q.AnalyzerBuff != 0 {
+		return q.AnalyzerBuff
+	}
+	return runtime.NumCPU()
 }
 
 // Urls will accept a slice of redis connection URLS. This slice will setup the connections and also set how many redis paritions will be used.
@@ -87,7 +121,6 @@ func (q *Queue) Urls(urls []string) {
 		q.urls = append(q.urls, v)
 		q.pool = append(q.pool, c)
 	}
-	q.paritions = len(q.urls)
 }
 
 // AddTask will add a task to the queue. It will accept an ID and a string.
@@ -95,32 +128,28 @@ func (q *Queue) Urls(urls []string) {
 // to the same analyser as long as analyers does not return before next ID is poped from the queue.
 func (q *Queue) AddTask(id int, task string) {
 	task = strconv.Itoa(id) + ";" + task
-	queueName := "QUEUE"
-	if q.QueueName != "" {
-		queueName = q.QueueName
-	}
-	_, e := q.pool[id%q.paritions].Do("RPUSH", queueName, task)
+	_, e := q.pool[q.redisID(id)].Do("RPUSH", q.queueName(id), task)
 	checkErr(e)
 }
 
-func (q *Queue) waitforSuccess(id int, success chan bool, pool map[int]chan string, queueName string) {
-	redisdb, _ := redis.DialURL(q.urls[id%q.paritions])
-	redisdb.Do("SET", queueName+"::PENDING::"+strconv.Itoa(id), 1)
+func (q *Queue) waitforSuccess(id int, success chan bool, pool map[int]chan string) {
+	redisdb, _ := redis.DialURL(q.urls[q.redisID(id)])
+	redisdb.Do("SET", q.pendingKeyName(id), 1)
 	r := <-success
 	if r {
 		delete(pool, id)
-		redisdb.Do("DEL", queueName+"::PENDING::"+strconv.Itoa(id))
+		redisdb.Do("DEL", q.pendingKeyName(id))
 	}
 }
 
-func removeTask(redisdb redis.Conn, queueName string) (int, string) {
+func (q *Queue) removeTask(redisdb redis.Conn, queueName string) (int, string) {
 	r, e := redisdb.Do("LPOP", queueName)
 	checkErr(e)
 	if r != nil {
 		s, _ := redis.String(r, e)
 		m := regexp.MustCompile(`(\d+);(.*)$`).FindStringSubmatch(s)
 		id, _ := strconv.Atoi(m[1])
-		redisdb.Do("SET", queueName+"::PENDING::"+strconv.Itoa(id), 1)
+		redisdb.Do("SET", q.pendingKeyName(id), 1)
 		return id, m[2]
 	}
 	return 0, ""
@@ -159,19 +188,12 @@ analyzer is a closure function which will be called for processing the tasks pop
 Analyser clousre must be able to accept the new Tasks without delay and if needed process them concurrently. Delay in accepting new Task will block AnalysePool.
 */
 func (q *Queue) AnalysePool(analyzerID int, exitOnEmpty func() bool, analyzer func(int, chan string, chan bool, chan bool)) {
-	redisdb, _ := redis.DialURL(q.urls[q.paritions%analyzerID])
-	queueName := "QUEUE"
-	if q.QueueName != "" {
-		queueName = q.QueueName
-	}
-	buff := q.AnalyzerBuff
-	if buff == 0 {
-		buff = runtime.NumCPU()
-	}
-	next := make(chan bool, buff)
+	redisdb, _ := redis.DialURL(q.urls[q.redisID(analyzerID)])
+
+	next := make(chan bool, q.analyzerBuff())
 	pool := make(map[int]chan string)
 	for {
-		id, task := removeTask(redisdb, queueName)
+		id, task := q.removeTask(redisdb, q.queueName(analyzerID))
 		if task == "" {
 			if exitOnEmpty() {
 				break
@@ -183,7 +205,7 @@ func (q *Queue) AnalysePool(analyzerID int, exitOnEmpty func() bool, analyzer fu
 				pool[id] = make(chan string)
 				success := make(chan bool)
 				go analyzer(id, pool[id], success, next)
-				go q.waitforSuccess(id, success, pool, queueName)
+				go q.waitforSuccess(id, success, pool)
 				pool[id] <- task
 				next <- true
 			} else {
@@ -192,7 +214,7 @@ func (q *Queue) AnalysePool(analyzerID int, exitOnEmpty func() bool, analyzer fu
 		}
 	}
 
-	for i := 0; i < buff; i++ {
+	for i := 0; i < q.analyzerBuff(); i++ {
 		next <- true
 	}
 }
