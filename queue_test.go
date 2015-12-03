@@ -8,6 +8,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
+//var testRedis = "redis://redisqueue.kaveh.me:6379"
 var testRedis = "redis://localhost:6379"
 
 func TestQueue_Urls(t *testing.T) {
@@ -40,7 +41,7 @@ func TestQueue_AddTask(t *testing.T) {
 	redisdb := q.pool[0]
 	redisdb.Do("FLUSHALL")
 	q.AddTask(4, "test")
-	r, e := redisdb.Do("RPOP", "QUEUE")
+	r, e := redisdb.Do("RPOP", "QUEUE::0")
 	s, e := redis.String(r, e)
 	if s != "4;test" {
 		t.Error("Task is stored incorrectly: ", s)
@@ -49,15 +50,18 @@ func TestQueue_AddTask(t *testing.T) {
 
 func TestQueue_QueueName(t *testing.T) {
 	var q Queue
-	q.Urls([]string{testRedis})
-	q.QueueName = "CUSTOM"
-	redisdb := q.pool[0]
-	redisdb.Do("FLUSHALL")
-	q.AddTask(4, "test")
-	r, e := redisdb.Do("RPOP", "CUSTOM")
-	s, e := redis.String(r, e)
-	if s != "4;test" {
-		t.Error("Task is stored incorrectly: ", s)
+	if q.queueName(5) != "QUEUE::0" {
+		t.Error("Queue name is wrong for id 5 and queues default: ", q.queueName(5))
+	}
+
+	q.Queues = 1
+	if q.queueName(5) != "QUEUE::0" {
+		t.Error("Queue name is wrong for id 5 and queues 1: ", q.queueName(5))
+	}
+
+	q.Queues = 2
+	if q.queueName(5) != "QUEUE::1" {
+		t.Error("Queue name is wrong for id 5 and queues 1: ", q.queueName(5))
 	}
 }
 
@@ -87,7 +91,7 @@ func TestQueue_AnalysePool(t *testing.T) {
 		return true
 	}
 	q.AnalysePool(1, exitOnEmpty, analyzer)
-	r, e := redisdb.Do("LLEN", "QUEUE")
+	r, e := redisdb.Do("LLEN", "QUEUE::0")
 	s, e := redis.Int64(r, e)
 	if s != 0 {
 		t.Error("Queue is not empty after processing tasks: ", s)
@@ -124,7 +128,7 @@ func TestAnalysePoolFailurePending(t *testing.T) {
 		return true
 	}
 	q.AnalysePool(1, exitOnEmpty, analyzer)
-	r, e := redisdb.Do("GET", "QUEUE::PENDING::2")
+	r, e := redisdb.Do("GET", "QUEUE::0::PENDING::2")
 	s, e := redis.Int(r, e)
 	if s != 1 {
 		t.Error("Task id 2 is not pending: ", s)
@@ -134,6 +138,7 @@ func TestAnalysePoolFailurePending(t *testing.T) {
 
 func TestAnalysePoolCheckingWaiting(t *testing.T) {
 	var q Queue
+	q.AnalyzerBuff = 2
 	q.Urls([]string{testRedis})
 	redisdb := q.pool[0]
 	redisdb.Do("FLUSHALL")
@@ -158,7 +163,7 @@ func TestAnalysePoolCheckingWaiting(t *testing.T) {
 	}
 	go q.AnalysePool(1, exitOnEmpty, analyzer)
 	time.Sleep(100 * time.Millisecond)
-	r, e := redisdb.Do("GET", "QUEUE::PENDING::2")
+	r, e := redisdb.Do("GET", "QUEUE::0::PENDING::2")
 	s, e := redis.Int(r, e)
 	if s != 1 {
 		t.Error("Task id 2 is not pending after queue is empty: ", s)
@@ -189,7 +194,7 @@ func BenchmarkRemoveTask(b *testing.B) {
 	q.Urls([]string{testRedis})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, s := q.removeTask(q.pool[0])
+		_, s := q.removeTask(q.pool[0], q.queueName(1))
 		if s == "" {
 			panic("Reached an empty queue. Benchmark is not valid:")
 		}

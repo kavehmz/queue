@@ -77,25 +77,29 @@ type Queue struct {
 	pool   []redis.Conn
 }
 
-func (q *Queue) queueID(id int) int {
-	if q.Queues > 1 {
-		return id % q.Queues
+func (q *Queue) queues() int {
+	if q.Queues != 0 {
+		return q.Queues
 	}
-	return 0
+	return 1
+}
+
+func (q *Queue) pendingKeyName(id int) string {
+	return q.queueName(id) + "::PENDING::" + strconv.Itoa(id)
 }
 
 func (q *Queue) redisID(id int) int {
 	if q.Queues != 0 {
-		return (id / q.Queues) % len(q.urls)
+		return (id / q.queues()) % len(q.urls)
 	}
 	return 0
 }
 
-func (q *Queue) queueName() string {
+func (q *Queue) queueName(id int) string {
 	if q.QueueName != "" {
-		return q.QueueName
+		return q.QueueName + "::" + strconv.Itoa(id%q.queues())
 	}
-	return "QUEUE"
+	return "QUEUE" + "::" + strconv.Itoa(id%q.queues())
 }
 
 func (q *Queue) analyzerBuff() int {
@@ -123,28 +127,28 @@ func (q *Queue) Urls(urls []string) {
 // to the same analyser as long as analyers does not return before next ID is poped from the queue.
 func (q *Queue) AddTask(id int, task string) {
 	task = strconv.Itoa(id) + ";" + task
-	_, e := q.pool[q.redisID(id)].Do("RPUSH", q.queueName(), task)
+	_, e := q.pool[q.redisID(id)].Do("RPUSH", q.queueName(id), task)
 	checkErr(e)
 }
 
 func (q *Queue) waitforSuccess(id int, success chan bool, pool map[int]chan string) {
 	redisdb, _ := redis.DialURL(q.urls[q.redisID(id)])
-	redisdb.Do("SET", q.queueName()+"::PENDING::"+strconv.Itoa(id), 1)
+	redisdb.Do("SET", q.pendingKeyName(id), 1)
 	r := <-success
 	if r {
 		delete(pool, id)
-		redisdb.Do("DEL", q.queueName()+"::PENDING::"+strconv.Itoa(id))
+		redisdb.Do("DEL", q.pendingKeyName(id))
 	}
 }
 
-func (q *Queue) removeTask(redisdb redis.Conn) (int, string) {
-	r, e := redisdb.Do("LPOP", q.queueName())
+func (q *Queue) removeTask(redisdb redis.Conn, queueName string) (int, string) {
+	r, e := redisdb.Do("LPOP", queueName)
 	checkErr(e)
 	if r != nil {
 		s, _ := redis.String(r, e)
 		m := regexp.MustCompile(`(\d+);(.*)$`).FindStringSubmatch(s)
 		id, _ := strconv.Atoi(m[1])
-		redisdb.Do("SET", q.queueName()+"::PENDING::"+strconv.Itoa(id), 1)
+		redisdb.Do("SET", q.pendingKeyName(id), 1)
 		return id, m[2]
 	}
 	return 0, ""
@@ -188,7 +192,7 @@ func (q *Queue) AnalysePool(analyzerID int, exitOnEmpty func() bool, analyzer fu
 	next := make(chan bool, q.analyzerBuff())
 	pool := make(map[int]chan string)
 	for {
-		id, task := q.removeTask(redisdb)
+		id, task := q.removeTask(redisdb, q.queueName(analyzerID))
 		if task == "" {
 			if exitOnEmpty() {
 				break
