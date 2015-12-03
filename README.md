@@ -24,12 +24,14 @@ package main
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/kavehmz/queue"
 )
 
 func main() {
-	var q Queue
-	q.Urls([]string{"redis://127.0.0.1:0"})
+	var q queue.Queue
+	q.Urls([]string{"redis://localhost:6379"})
 	q.AddTask(1, "start")
 	q.AddTask(2, "start")
 	q.AddTask(1, "stop")
@@ -56,7 +58,6 @@ func main() {
 		return true
 	}
 	q.AnalysePool(1, exitOnEmpty, analyzer)
-
 }
 ```
 
