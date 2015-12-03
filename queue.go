@@ -89,10 +89,7 @@ func (q *Queue) pendingKeyName(id int) string {
 }
 
 func (q *Queue) redisID(id int) int {
-	if q.Queues != 0 {
-		return (id / q.queues()) % len(q.urls)
-	}
-	return 0
+	return (id / q.queues()) % len(q.urls)
 }
 
 func (q *Queue) queueName(id int) string {
