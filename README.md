@@ -36,19 +36,17 @@ func main() {
 	q.AddTask(2, "start")
 	q.AddTask(1, "stop")
 	q.AddTask(2, "stop")
-	analyzer := func(id int, task chan string, success chan bool, next chan bool) {
+	analyzer := func(id int, task chan string, success chan bool) {
 		for {
 			select {
 			case msg := <-task:
 				fmt.Println(id, msg)
 				if msg == "stop" {
-					<-next
 					success <- true
 					return
 				}
 			case <-time.After(2 * time.Second):
 				fmt.Println("no new events for 2 seconds for ID", id)
-				<-next
 				success <- false
 				return
 			}

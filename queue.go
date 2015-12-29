@@ -1,5 +1,5 @@
 /*
-queue is a simple Queue system written in Go that will uses Redis.
+Package queue is a simple Queue system written in Go that will uses Redis.
 Focus of this design is mainly horisontal scalability via concurrency, paritioning and fault-detection
 Queues can be partitions in to more than one Redis if necessary.
 
@@ -40,13 +40,12 @@ AnalysePool accepts 3 parameters. One analyzerID that will identify which redis 
 
 AnalysePool need two closures, analyzer and exitOnEmpty. Format of those closure are as follows.
 
-	analyzer := func(id int, task chan string, success chan bool, next chan bool) {
+	analyzer := func(id int, task chan string, success chan bool) {
 		for {
 			select {
 			case msg := <-task:
 				//process the task
 				if msg == "stop_indicator" {
-					<-next
 					success <- true
 					return
 				}
@@ -132,7 +131,7 @@ func (q *Queue) AddTask(id int, task string) {
 	checkErr(e)
 }
 
-func (q *Queue) waitforSuccess(id int, success chan bool, pool map[int]chan string) {
+func (q *Queue) waitforSuccess(id int, success chan bool, pool map[int]chan string, next chan bool) {
 	redisdb, _ := redis.DialURL(q.urls[q.redisID(id)])
 	redisdb.Do("SET", q.pendingKeyName(id), 1)
 	r := <-success
@@ -140,6 +139,7 @@ func (q *Queue) waitforSuccess(id int, success chan bool, pool map[int]chan stri
 		delete(pool, id)
 		redisdb.Do("DEL", q.pendingKeyName(id))
 	}
+	<-next
 }
 
 func (q *Queue) removeTask(redisdb redis.Conn, queueName string) (int, string) {
@@ -164,7 +164,7 @@ exitOnEmpty is a closure function which will control inner loop of AnalysePool w
 		return true
 	}
 analyzer is a closure function which will be called for processing the tasks popped from queue.
-	analyzer := func(id int, task chan string, success chan bool, next chan bool) {
+	analyzer := func(id int, task chan string, success chan bool) {
 		for {
 			select {
 			case msg := <-task:
@@ -173,13 +173,11 @@ analyzer is a closure function which will be called for processing the tasks pop
 				}
 				fmt.Println(id, msg)
 				if msg == "stop" {
-					<-next
 					success <- true
 					return
 				}
 			case <-time.After(2 * time.Second):
 				fmt.Println("no new event for 2 seconds for ID", id)
-				<-next
 				success <- false
 				return
 			}
@@ -187,7 +185,7 @@ analyzer is a closure function which will be called for processing the tasks pop
 	}
 Analyser clousre must be able to accept the new Tasks without delay and if needed process them concurrently. Delay in accepting new Task will block AnalysePool.
 */
-func (q *Queue) AnalysePool(analyzerID int, exitOnEmpty func() bool, analyzer func(int, chan string, chan bool, chan bool)) {
+func (q *Queue) AnalysePool(analyzerID int, exitOnEmpty func() bool, analyzer func(int, chan string, chan bool)) {
 	redisdb, _ := redis.DialURL(q.urls[q.redisID(analyzerID)])
 
 	next := make(chan bool, q.analyzerBuff())
@@ -204,8 +202,8 @@ func (q *Queue) AnalysePool(analyzerID int, exitOnEmpty func() bool, analyzer fu
 			if pool[id] == nil {
 				pool[id] = make(chan string)
 				success := make(chan bool)
-				go analyzer(id, pool[id], success, next)
-				go q.waitforSuccess(id, success, pool)
+				go analyzer(id, pool[id], success)
+				go q.waitforSuccess(id, success, pool, next)
 				pool[id] <- task
 				next <- true
 			} else {

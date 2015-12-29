@@ -74,12 +74,11 @@ func TestQueue_AnalysePool(t *testing.T) {
 	q.AddTask(2, "start")
 	q.AddTask(1, "stop")
 	q.AddTask(2, "stop")
-	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
+	analyzer := func(id int, msg_channel chan string, success chan bool) {
 		for {
 			select {
 			case msg := <-msg_channel:
 				if msg == "stop" {
-					<-next
 					success <- true
 					return
 				}
@@ -106,18 +105,16 @@ func TestAnalysePoolFailurePending(t *testing.T) {
 	q.AddTask(1, "start")
 	q.AddTask(2, "start")
 	q.AddTask(1, "stop")
-	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
+	analyzer := func(id int, msg_channel chan string, success chan bool) {
 		for {
 			select {
 			case msg := <-msg_channel:
 				if msg == "stop" {
-					<-next
 					success <- true
 					return
 				}
 			case <-time.After(1 * time.Second):
 				fmt.Println("no new event for 2 seconds for ID", id)
-				<-next
 				success <- false
 				return
 			}
@@ -144,12 +141,11 @@ func TestAnalysePoolCheckingWaiting(t *testing.T) {
 	q.AddTask(1, "start")
 	q.AddTask(2, "start")
 	q.AddTask(1, "stop")
-	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
+	analyzer := func(id int, msg_channel chan string, success chan bool) {
 		for {
 			select {
 			case msg := <-msg_channel:
 				if msg == "stop" {
-					<-next
 					success <- true
 					return
 				}
@@ -209,7 +205,7 @@ func ExampleQueue_AnalysePool() {
 	q.AddTask(2, "start")
 	q.AddTask(1, "stop")
 	q.AddTask(2, "stop")
-	analyzer := func(id int, msg_channel chan string, success chan bool, next chan bool) {
+	analyzer := func(id int, msg_channel chan string, success chan bool) {
 		for {
 			select {
 			case msg := <-msg_channel:
@@ -218,13 +214,11 @@ func ExampleQueue_AnalysePool() {
 				}
 				fmt.Println(id, msg)
 				if msg == "stop" {
-					<-next
 					success <- true
 					return
 				}
 			case <-time.After(2 * time.Second):
 				fmt.Println("no new event for 2 seconds for ID", id)
-				<-next
 				success <- false
 				return
 			}
