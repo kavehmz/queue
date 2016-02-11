@@ -1,10 +1,10 @@
 /*
 Package queue is a simple Queue system written in Go that will uses Redis.
-Focus of this design is mainly horisontal scalability via concurrency, paritioning and fault-detection
+Focus of this design is mainly horisontal scalability via concurrency, partitioning and fault-detection
 Queues can be partitions in to more than one Redis if necessary.
 
-Number of redis paritions is set by using Urls function and setting slice of Redis URL connections.
-Redis paritioning is required in cases that one redis cannot handle the load because of IO, moemory or in rare situations CPU limitations.
+Number of redis partitions is set by using Urls function and setting slice of Redis URL connections.
+Redis partitioning is required in cases that one redis cannot handle the load because of IO, moemory or in rare situations CPU limitations.
 
 In case of crash record of all incomplete tasks will be kepts in redis as keys with this format
 	QUEUE::0::PENDING::ID
@@ -109,7 +109,7 @@ func (q *Queue) analyzerBuff() int {
 	return runtime.NumCPU()
 }
 
-// Urls will accept a slice of redis connection URLS. This slice will setup the connections and also set how many redis paritions will be used.
+// Urls will accept a slice of redis connection URLS. This slice will setup the connections and also set how many redis partitions will be used.
 // Setting more than one redis is useful in some cases that a single redis can't handle a the queue load either because of IO and memory restrictions or if possible CPU.
 func (q *Queue) Urls(urls []string) {
 	q.urls = q.urls[:0]
