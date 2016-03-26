@@ -11,5 +11,5 @@ install:
   - go get github.com/mattn/goveralls
   - go get github.com/garyburd/redigo/redis
 script:
-    - go test -v -covermode=count -coverprofile=coverage.out -bench .
+    - go test -v -covermode=count -coverprofile=coverage.out -benchmem -bench .
     - $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci -repotoken $COVERALLS_TOKEN
