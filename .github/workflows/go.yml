@@ -1,0 +1,46 @@
+name: Go
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+
+    # Service containers to run with `runner-job`
+    services:
+      # Label used to access the service container
+      redis:
+        # Docker Hub image
+        image: redis
+        #
+        ports:
+          # Opens tcp port 6379 on the host and service container
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.17
+
+    - name: Build
+      run: go build -v ./...
+
+    - name: Test
+      run: go test -v -coverprofile=coverage.out ./...
+
+    - name: Convert coverage to lcov
+      uses: jandelgado/gcov2lcov-action@v1.0.5
+
+    - name: Coveralls
+      uses: coverallsapp/github-action@master
+      with:
+        path-to-lcov: coverage.lcov
+        github-token: ${{ secrets.GITHUB_TOKEN }}
