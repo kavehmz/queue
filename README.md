@@ -2,7 +2,7 @@ Queue
 =========
 [![Go Lang](http://kavehmz.github.io/static/gopher/gopher-front.svg)](https://golang.org/)
 [![GoDoc](https://godoc.org/github.com/kavehmz/queue?status.svg)](https://godoc.org/github.com/kavehmz/queue)
-[![Build Status](https://travis-ci.org/kavehmz/queue.svg?branch=master)](https://travis-ci.org/kavehmz/queue)
+![Build Status](https://github.com/kavehmz/queue/actions/workflows/go.yml/badge.svg?branch=master)
 [![Coverage Status](https://coveralls.io/repos/kavehmz/queue/badge.svg?branch=master&service=github)](https://coveralls.io/github/kavehmz/queue?branch=master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kavehmz/queue)](https://goreportcard.com/report/github.com/kavehmz/queue)
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/kavehmz/queue)
