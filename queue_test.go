@@ -8,7 +8,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
-var testRedis = "redis://localhost:6379"
+var testRedis = "redis://redis:6379"
 
 func TestQueue_Urls(t *testing.T) {
 	var q Queue
